@@ -70,12 +70,52 @@
     };
     let state = loadState();
     let currentView = state.user.name ? 'dashboard' : 'welcome';
+    let serverSyncTimer = null;
     let activeHub = 'qa';
     let editingGuideId = null;
     let quizSession = null;
 
+    function isAppsScript() { return typeof google !== 'undefined' && google.script && google.script.run; }
     function loadState() { try { const saved = JSON.parse(localStorage.getItem(STORAGE_KEY)); return saved ? saved : structuredClone(seedState); } catch { return structuredClone(seedState); } }
-    function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+    function saveState() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      if (!isAppsScript()) return;
+      clearTimeout(serverSyncTimer);
+      serverSyncTimer = setTimeout(() => {
+        google.script.run
+          .withFailureHandler(error => console.warn('GVCS server sync failed; local copy remains available.', error))
+          .saveAppState(state);
+      }, 250);
+    }
+    function hydrateFromServer() {
+      if (!isAppsScript()) return;
+      google.script.run
+        .withSuccessHandler(serverState => {
+          if (serverState && typeof serverState === 'object') {
+            state = serverState;
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+            currentView = state.user && state.user.name ? 'dashboard' : 'welcome';
+            render();
+          }
+        })
+        .withFailureHandler(error => console.warn('GVCS is running in local mode because server state could not load.', error))
+        .getAppState();
+    }
+    function uploadAttachment(file, done) {
+      if (!file || !file.name) { done(null); return; }
+      const localMetadata = { name: file.name, size: file.size, type: file.type };
+      if (!isAppsScript()) { done(localMetadata); return; }
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = String(reader.result).split(',')[1];
+        google.script.run
+          .withSuccessHandler(remoteMetadata => done(remoteMetadata))
+          .withFailureHandler(error => { console.warn('Attachment upload failed; only local metadata was saved.', error); done(localMetadata); })
+          .uploadAttachment({ name:file.name, mimeType:file.type, base64 });
+      };
+      reader.onerror = () => done(localMetadata);
+      reader.readAsDataURL(file);
+    }
     function uid(prefix) { return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`; }
     function escapeHtml(value='') { return String(value).replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char])); }
     function greeting() { const hour = new Date().getHours(); return hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'; }
@@ -138,7 +178,7 @@
       const reset=document.getElementById('resetData'); if(reset)reset.onclick=()=>{localStorage.removeItem(STORAGE_KEY);state=structuredClone(seedState);route('welcome');};
     }
     function bindQuestionEditors(){document.querySelectorAll('[data-remove-question]').forEach(button=>button.onclick=()=>button.closest('.question-editor').remove());document.querySelectorAll('select[name="qType"]').forEach(select=>select.onchange=()=>select.closest('.question-editor').querySelector('.choice-fields').classList.toggle('hidden',select.value!=='multiple'));}
-    function saveAnnouncement(event){event.preventDefault();const data=new FormData(event.target);const file=data.get('attachment');const existing=state.announcements.find(a=>a.id===data.get('id'));const item={id:existing?.id||uid('a'),title:data.get('title').trim(),body:data.get('body').trim(),author:data.get('author').trim(),date:'Just now',attachment:file&&file.name?{name:file.name,size:file.size,type:file.type}:existing?.attachment||null,read:false};if(existing)Object.assign(existing,item);else state.announcements.unshift(item);saveState();route('announcements');}
+    function saveAnnouncement(event){event.preventDefault();const data=new FormData(event.target);const file=data.get('attachment');const existing=state.announcements.find(a=>a.id===data.get('id'));uploadAttachment(file, attachment=>{const item={id:existing?.id||uid('a'),title:data.get('title').trim(),body:data.get('body').trim(),author:data.get('author').trim(),date:'Just now',attachment:attachment||existing?.attachment||null,read:false};if(existing)Object.assign(existing,item);else state.announcements.unshift(item);saveState();route('announcements');});}
     function saveGuide(event){event.preventDefault();const form=event.target;const editors=[...form.querySelectorAll('.question-editor')];const questions=editors.map(editor=>{const type=editor.querySelector('[name="qType"]').value;return{id:uid('q'),type,prompt:editor.querySelector('[name="qPrompt"]').value.trim(),choices:type==='multiple'?[...editor.querySelectorAll('[name="qChoice"]')].map(input=>input.value.trim()):[],answer:editor.querySelector('[name="qAnswer"]').value.trim(),explanation:editor.querySelector('[name="qExplanation"]').value.trim()};}).filter(question=>question.prompt&&question.answer);const data=new FormData(form);const existing=state.guides.find(g=>g.id===data.get('guideId'));const guide={id:existing?.id||uid('g'),title:data.get('title').trim(),subject:data.get('subject').trim(),questions};if(existing)Object.assign(existing,guide);else state.guides.push(guide);saveState();route('study');}
     function nextQuiz(){const guide=state.guides.find(g=>g.id===quizSession.guideId);if(quizSession.index<guide.questions.length-1){quizSession.index++;render();}else{const score=quizSession.score;document.getElementById('app').innerHTML=layout(`${header('Practice complete',`You scored ${score} out of ${guide.questions.length}.`,'<button class="red-button" data-go="study">Back to guides</button>')}<section class="result">Review your guide, edit explanations, or try another practice session when you are ready.</section>`);bindView();}}
     function gradeMultiple(answer){const guide=state.guides.find(g=>g.id===quizSession.guideId),question=guide.questions[quizSession.index],correct=answer===question.answer;document.querySelectorAll('[data-answer]').forEach(button=>{button.disabled=true;button.classList.add(button.dataset.answer===question.answer?'correct':button.dataset.answer===answer?'wrong':'');});if(correct)quizSession.score++;document.getElementById('answerFeedback').innerHTML=`<div class="result"><b>${correct?'Correct.':'Keep working at it.'}</b> ${escapeHtml(question.explanation)}<br><button class="red-button" id="nextQuestion" style="margin-top:10px">${quizSession.index===guide.questions.length-1?'See result':'Next question'}</button></div>`;document.getElementById('nextQuestion').onclick=nextQuiz;}
@@ -150,6 +190,7 @@
     let timerId=null,seconds=1500;function bindFocusTimer(button){button.onclick=()=>{if(timerId){clearInterval(timerId);timerId=null;button.textContent='Resume focus';return;}button.textContent='Pause focus';timerId=setInterval(()=>{seconds--;const timer=document.getElementById('timer');if(timer)timer.textContent=`${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`;if(seconds<=0){clearInterval(timerId);timerId=null;button.textContent='Complete';}},1000);};}
     document.querySelectorAll('[data-view]').forEach(button=>button.addEventListener('click',()=>route(button.dataset.view)));
     render();
+    hydrateFromServer();
   </script>
 </body>
 </html>
