@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Untitled RPG</title>
+  <style>
+    :root { --ink:#1c251c; --paper:#efe0a8; --gold:#e4b94b; --moss:#426143; --leaf:#213d2d; --red:#a44435; --muted:#a59163; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; color:var(--ink); font-family:Georgia, "Malgun Gothic", serif; background:radial-gradient(circle at 50% 0%,#547c51 0,#294733 42%,#16281f 100%); }
+    .game { max-width:1280px; min-height:100vh; margin:auto; padding:24px; display:grid; grid-template-columns:minmax(0,1fr) 310px; gap:20px; }
+    .panel { border:4px solid #68471d; border-radius:8px; box-shadow:inset 0 0 0 2px #f7e9b7, 0 7px 18px #0b160fcc; background:linear-gradient(135deg,#f6e8b5,#ddc888); }
+    .main { display:flex; flex-direction:column; min-height:680px; overflow:hidden; }
+    header { padding:25px 28px 18px; color:#fff5cf; text-align:center; background:linear-gradient(180deg,#263f2c,#172d22); border-bottom:4px solid #68471d; text-shadow:2px 2px #0e1c13; }
+    h1 { margin:0; font-size:clamp(2rem,5vw,3.6rem); letter-spacing:.08em; } .subtitle { margin:7px 0 0; color:#e4c567; font-size:.9rem; letter-spacing:.18em; }
+    #story { flex:1; margin:18px; padding:25px; min-height:350px; overflow:auto; white-space:pre-wrap; line-height:1.8; background:#f9edbd url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Cpath d='M0 79h80M79 0v80' stroke='%23c5ad72' stroke-opacity='.13'/%3E%3C/svg%3E"); border:2px solid #8f6b32; box-shadow:inset 0 0 15px #9b784044; font-size:1.05rem; }
+    .welcome { color:#4c613c; font-weight:bold; } .roll { color:#8c372e; font-weight:bold; }
+    .command { display:flex; gap:9px; padding:0 18px 19px; } input { min-width:0; flex:1; border:2px solid #725326; border-radius:4px; padding:13px; color:var(--ink); background:#fff5cc; font:inherit; } button { border:2px solid #3c2a15; border-radius:4px; padding:11px 16px; color:#fff4bf; background:linear-gradient(#8a6733,#523616); box-shadow:inset 0 1px #e4c36c; cursor:pointer; font:700 1rem Georgia,serif; } button:hover:not(:disabled) { filter:brightness(1.16); } button:disabled { opacity:.55; cursor:wait; }
+    .side { align-self:start; overflow:hidden; } .side-title { margin:0; padding:17px 20px; color:#fff3bc; background:var(--leaf); text-align:center; letter-spacing:.12em; } .block { padding:15px 18px; border-bottom:2px solid #b99a59; } .block:last-child { border:0; } h2 { margin:0 0 10px; color:#59421e; font-size:.95rem; letter-spacing:.09em; } .stage { color:#304b31; font-weight:bold; font-size:1.1rem; } .meter { height:13px; overflow:hidden; border:1px solid #63441e; background:#81634a; } .meter > i { display:block; height:100%; background:linear-gradient(90deg,#a8352d,#d8654b); } .xp > i { background:linear-gradient(90deg,#c38b24,#f0d05f); } .numbers { display:flex; justify-content:space-between; margin:5px 0 8px; font-size:.87rem; } .stats { display:grid; grid-template-columns:repeat(2,1fr); gap:7px; } .stat { padding:7px 9px; background:#f8eac0; border:1px solid #b69858; display:flex; justify-content:space-between; } .mod { color:#5b773f; font-weight:bold; } ul { margin:0; padding:0; list-style:none; } li { padding:8px 0; border-top:1px dashed #ad9054; } li:first-child { border-top:0; } .item-name { font-weight:bold; } .item-effect { display:block; color:#6a5939; font-size:.83rem; margin-top:2px; } #status { min-height:1.2em; color:#6f4c21; font-size:.86rem; text-align:center; padding:0 18px 10px; }
+    @media (max-width:800px) { .game{grid-template-columns:1fr;padding:12px}.side{order:-1}.main{min-height:580px}.block{padding:12px}.side-title{padding:12px}.inventory{display:none} }
+  </style>
+</head>
+<body>
+  <div class="game">
+    <main class="panel main">
+      <header><h1>Untitled RPG</h1><p class="subtitle">✦ ALDESHIA CHRONICLES ✦</p></header>
+      <section id="story"><span class="welcome">모험가여, 알데시아에 오신 것을 환영합니다.</span>
+
+오른쪽의 상태판을 확인하고, 아래에 행동을 입력하여 이야기를 시작하세요.</section>
+      <div id="status"></div>
+      <div class="command"><input id="action" maxlength="1000" placeholder="예: 마을 광장에서 수상한 노인을 살핀다." autocomplete="off"><button id="turnButton" type="button">행동하기</button><button id="newButton" type="button">새 모험</button></div>
+    </main>
+    <aside class="panel side">
+      <h2 class="side-title">모험가의 기록</h2>
+      <section class="block"><h2>현재 여정</h2><div id="stage" class="stage">불러오는 중…</div><div id="level" class="numbers"></div></section>
+      <section class="block"><h2>생명력</h2><div id="hpText" class="numbers"></div><div class="meter"><i id="hpBar"></i></div><div id="xpText" class="numbers"></div><div class="meter xp"><i id="xpBar"></i></div></section>
+      <section class="block"><h2>능력치</h2><div id="stats" class="stats"></div></section>
+      <section class="block inventory"><h2>인벤토리</h2><ul id="inventory"></ul></section>
+    </aside>
+  </div>
+  <script>
+    const stages = ['시작의 마을','고블린 부락','오크 점령지','알데시아 사막','해적의 만','혹한의 설산','수정광산','요정의 숲','황폐한 대지','마왕의 탑'];
+    const $ = id => document.getElementById(id);
+    const modifier = value => Math.floor((value - 10) / 2);
+    const signed = value => (value >= 0 ? '+' : '') + value;
+    function render(state) {
+      $('stage').textContent = state.game_over ? '전설이 완성되었습니다' : stages[state.current_stage_index];
+      $('level').innerHTML = '<b>레벨 ' + state.level + '</b><span>다음 레벨까지</span>';
+      $('hpText').innerHTML = '<b>HP ' + state.hp + ' / ' + state.max_hp + '</b><span>생명력</span>';
+      $('hpBar').style.width = (100 * state.hp / state.max_hp) + '%';
+      const needed = state.level * 100;
+      $('xpText').innerHTML = '<b>XP ' + state.xp + ' / ' + needed + '</b><span>경험치</span>';
+      $('xpBar').style.width = (100 * state.xp / needed) + '%';
+      $('stats').innerHTML = Object.keys(state.stats).map(name => '<div class="stat"><b>' + name + '</b><span>' + state.stats[name] + ' <span class="mod">(' + signed(modifier(state.stats[name])) + ')</span></span></div>').join('');
+      $('inventory').innerHTML = state.inventory.length ? state.inventory.map(item => '<li><span class="item-name">' + escapeHtml(item.name) + '</span><span class="item-effect">' + escapeHtml(item.effect || '') + '</span></li>').join('') : '<li>비어 있습니다.</li>';
+    }
+    function escapeHtml(value) { const el = document.createElement('div'); el.textContent = value; return el.innerHTML; }
+    function busy(value) { $('turnButton').disabled = value; $('newButton').disabled = value; $('action').disabled = value; $('status').textContent = value ? '운명의 실이 엮이고 있습니다…' : ''; }
+    function fail(error) { busy(false); $('status').textContent = '오류: ' + (error.message || error); }
+    function load() { google.script.run.withSuccessHandler(render).withFailureHandler(fail).getGameState(); }
+    function turn() { const input = $('action').value.trim(); if (!input) return; busy(true); google.script.run.withSuccessHandler(result => { $('story').innerHTML = escapeHtml(result.narrative).replace(/\n/g, '<br>') + '<br><br><span class="roll">[D20: ' + result.roll + ' · ' + result.outcome + ']</span>'; $('action').value = ''; render(result.state); busy(false); }).withFailureHandler(fail).processTurn(input); }
+    function startNew() { busy(true); google.script.run.withSuccessHandler(state => { render(state); $('story').innerHTML = '<span class="welcome">새로운 모험이 시작되었습니다.</span>\n\n당신의 첫 행동을 선택하세요.'; busy(false); }).withFailureHandler(fail).initGame(); }
+    $('turnButton').addEventListener('click', turn); $('newButton').addEventListener('click', startNew); $('action').addEventListener('keydown', event => { if (event.key === 'Enter') turn(); }); load();
+  </script>
+</body>
+</html>
