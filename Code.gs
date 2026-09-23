@@ -104,7 +104,14 @@ function parseGMActions(apiResponseText) {
 }
 
 function doGet() {
-  return HtmlService.createHtmlOutput(buildPage_()).setTitle('알데시아: AI TRPG');
+  return HtmlService.createHtmlOutputFromFile('Index')
+    .setTitle('Untitled RPG')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+/** Client-side google.script.run entry point. */
+function getGameState() {
+  return publicState_(loadState_());
 }
 
 function doPost(e) {
@@ -217,10 +224,3 @@ function equippedBonuses_(state) {
 }
 function clampInt_(value, min, max) { value = typeof value === 'number' && isFinite(value) ? Math.floor(value) : min; return Math.max(min, Math.min(max, value)); }
 function jsonOutput_(value) { return ContentService.createTextOutput(JSON.stringify(value)).setMimeType(ContentService.MimeType.JSON); }
-
-function buildPage_() {
-  return '<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
-    '<title>알데시아: AI TRPG</title><style>body{max-width:760px;margin:2rem auto;padding:0 1rem;background:#15120e;color:#eee;font:16px system-ui}#log{white-space:pre-wrap;line-height:1.65;background:#242018;padding:1rem;border-radius:8px;min-height:14rem}input,button{font:inherit;padding:.7rem}input{width:70%}button{cursor:pointer}small{color:#bbb}</style>' +
-    '<h1>알데시아: AI TRPG</h1><small id="state">불러오는 중…</small><div id="log">새 모험을 시작하려면 초기화를 누르세요.</div><p><input id="action" placeholder="무엇을 하시겠습니까?"><button onclick="turn()">행동</button><button onclick="resetGame()">초기화</button></p>' +
-    '<script>const $=id=>document.getElementById(id);function show(s){$("state").textContent=`Lv.${s.level} | HP ${s.hp}/${s.max_hp} | XP ${s.xp} | ${["시작의 마을","고블린 부락","오크 점령지","알데시아 사막","해적의 만","혹한의 설산","수정광산","요정의 숲","황폐한 대지","마왕의 탑"][s.current_stage_index]}`}async function api(x){let r=await fetch(location.href,{method:"POST",body:JSON.stringify(x)});let j=await r.json();if(!j.ok)throw Error(j.error);return j.result}async function turn(){let input=$("action").value;if(!input)return;try{let r=await api({action:"turn",input});$("log").textContent=r.narrative+"\\n\\n[주사위: "+r.roll+", "+r.outcome+"]";show(r.state);$("action").value=""}catch(e){$("log").textContent="오류: "+e.message}}async function resetGame(){try{let r=await api({action:"init"});show(r.state);$("log").textContent="새로운 모험이 시작되었습니다."}catch(e){$("log").textContent="오류: "+e.message}}api({action:"state"}).then(r=>show(r.state)).catch(e=>$("state").textContent=e.message);$("action").addEventListener("keydown",e=>{if(e.key==="Enter")turn()});</script></html>';
-}
